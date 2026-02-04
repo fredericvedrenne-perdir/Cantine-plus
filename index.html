@@ -347,42 +347,22 @@
     let currentService = "midi"; 
     let currentPrintType = "student"; 
 
-    // --- BLOC DE DÉMARRAGE ET RÉPARATION ---
     window.onload = function() {
-        // 1. Chargement des données
         if(localStorage.getItem('cantineV40')) db = JSON.parse(localStorage.getItem('cantineV40'));
         else if(localStorage.getItem('cantineV39')) db = JSON.parse(localStorage.getItem('cantineV39'));
         
-        // 2. Initialisation des structures si absentes
         if(!db.staff) db.staff = [];
-        if(!db.config) db.config = {}; // Sécurité
-        if(!db.config.meals_dp) db.config.meals_dp = {};
-        if(!db.config.meals_int) db.config.meals_int = {};
+        if(!db.config.meals_dp) initMealConfig();
         if(!db.config.closed_days) db.config.closed_days = [];
         if(!db.config.year) db.config.year = new Date().getMonth()<7 ? new Date().getFullYear()-1 : new Date().getFullYear();
         
-        // 3. RÉPARATION FORCÉE DES JOURS MANQUANTS (Le point critique)
-        DAYS.forEach(d => {
-            // Si le jour n'existe pas pour les DP, on le crée
-            if(!db.config.meals_dp[d]) {
-                console.log("Réparation du jour manquant (DP) : " + d);
-                db.config.meals_dp[d] = { matin: false, midi: true, soir: false };
-            }
-            // Si le jour n'existe pas pour les Internes, on le crée
-            if(!db.config.meals_int[d]) {
-                console.log("Réparation du jour manquant (INT) : " + d);
-                db.config.meals_int[d] = { matin: true, midi: true, soir: true };
-            }
-        });
-
-        // 4. Initialisation de l'interface
         document.getElementById('scanDate').valueAsDate = new Date();
         populateYearSelector();
         document.getElementById('schoolYearSelect').value = db.config.year;
         populateWeekSelector(db.config.year);
         renderCalendar();
         autoSelectService();
-        renderMealTables(); // Va maintenant afficher les cases correctement
+        renderMealTables();
         updateUI();
         setupDragDrop('drop-student', 'fileInputStd', 'student');
         setupDragDrop('drop-staff', 'fileInputStaff', 'staff');
@@ -391,23 +371,22 @@
         scanIn.focus();
         scanIn.addEventListener('keydown', e => { if(e.key==='Enter') { e.preventDefault(); processScan(scanIn.value.trim()); } });
 
-        // Sauvegarde immédiate de la structure réparée
-        saveData();
+        setTimeout(() => {
+            const backup = localStorage.getItem('Cantine_Plus_AutoSave');
+            if (backup) {
+                let btn = document.createElement('button');
+                btn.innerHTML = "⚠️ <strong>Une sauvegarde existe</strong> : Restaurer ?";
+                btn.style.cssText = "position:fixed; top:10px; left:50%; transform:translateX(-50%); background:#e74c3c; color:white; padding:12px 25px; border:none; border-radius:50px; z-index:10000; cursor:pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-size:1rem; animation: slideDown 0.5s;";
+                btn.onclick = function() {
+                    if(confirm("Attention : Cela va écraser les données actuelles. Continuer ?")) {
+                        try { db = JSON.parse(backup); renderCalendar(); renderMealTables(); renderStudents(); renderStaff(); renderReportTable(); updateUI(); if(db.config.schoolName) document.getElementById('confName').value = db.config.schoolName; if(db.config.city) document.getElementById('confCity').value = db.config.city; if(db.config.year) { document.getElementById('schoolYearSelect').value = db.config.year; populateWeekSelector(db.config.year); } alert("✅ Session restaurée !"); btn.remove(); } catch(e) { alert("Erreur restauration"); }
+                    }
+                };
+                let btnClose = document.createElement('span'); btnClose.innerHTML = " ✖"; btnClose.style.marginLeft = "10px"; btnClose.onclick = (e) => { e.stopPropagation(); btn.remove(); }; btn.appendChild(btnClose);
+                document.body.appendChild(btn);
+            }
+        }, 800);
     };
-
-    // --- FONCTION DE MISE À JOUR SÉCURISÉE (updCfg) ---
-    function updCfg(target, day, type, val) { 
-        // Sécurité anti-crash : si le jour n'existe pas, on le crée à la volée
-        if(target === 'dp') {
-            if(!db.config.meals_dp[day]) db.config.meals_dp[day] = { matin: false, midi: true, soir: false };
-            db.config.meals_dp[day][type] = val; 
-        } else { 
-            if(!db.config.meals_int[day]) db.config.meals_int[day] = { matin: true, midi: true, soir: true };
-            db.config.meals_int[day][type] = val; 
-        }
-        // On sauvegarde immédiatement le changement
-        saveData();
-    }
 
     function saveData() { localStorage.setItem('cantineV40', JSON.stringify(db)); updateUI(); }
     function updateUI() { document.getElementById('confName').value = db.config.name || ''; document.getElementById('confCity').value = db.config.city || ''; loadDailyStats(); }
@@ -420,7 +399,8 @@
     function changeSchoolYear() { db.config.year = parseInt(document.getElementById('schoolYearSelect').value); saveData(); renderCalendar(); populateWeekSelector(db.config.year); }
     function initMealConfig() { db.config.meals_dp = {}; db.config.meals_int = {}; DAYS.forEach(d => { db.config.meals_dp[d] = { matin: false, midi: true, soir: false }; db.config.meals_int[d] = { matin: true, midi: true, soir: true }; }); }
     function renderMealTables() { const order = [1,2,3,4,5,6,0]; const tDP = document.getElementById('mealTableDP'); tDP.innerHTML=''; const tInt = document.getElementById('mealTableInt'); tInt.innerHTML=''; order.forEach(idx => { const d = DAYS[idx]; tDP.innerHTML += `<tr><td><b>${d}</b></td><td><input type="checkbox" class="meal-check" onchange="updCfg('dp','${d}','matin',this.checked)" ${db.config.meals_dp[d]?.matin?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('dp','${d}','midi',this.checked)" ${db.config.meals_dp[d]?.midi?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('dp','${d}','soir',this.checked)" ${db.config.meals_dp[d]?.soir?'checked':''}></td></tr>`; tInt.innerHTML += `<tr><td><b>${d}</b></td><td><input type="checkbox" class="meal-check" onchange="updCfg('int','${d}','matin',this.checked)" ${db.config.meals_int[d]?.matin?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('int','${d}','midi',this.checked)" ${db.config.meals_int[d]?.midi?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('int','${d}','soir',this.checked)" ${db.config.meals_int[d]?.soir?'checked':''}></td></tr>`; }); }
-        function renderCalendar() { const container = document.getElementById('annualCalendar'); container.innerHTML = ""; const startYear = parseInt(document.getElementById('schoolYearSelect').value); const monthsOrder = [8,9,10,11,0,1,2,3,4,5,6,7]; monthsOrder.forEach(mIdx => { const year = mIdx >= 8 ? startYear : startYear + 1; const monthDiv = document.createElement('div'); monthDiv.className = "month-box"; const title = document.createElement('div'); title.className = "month-title"; title.innerText = MONTHS_FR[mIdx] + " " + year; monthDiv.appendChild(title); const grid = document.createElement('div'); grid.className = "days-grid"; ['L','M','M','J','V','S','D'].forEach(l => { const sp = document.createElement('div'); sp.className="day-header"; sp.innerText=l; grid.appendChild(sp); }); const firstDay = new Date(year, mIdx, 1); const lastDay = new Date(year, mIdx+1, 0); const daysInMonth = lastDay.getDate(); let startDow = firstDay.getDay() - 1; if(startDow === -1) startDow = 6; for(let i=0; i<startDow; i++) { grid.appendChild(document.createElement('div')); } for(let d=1; d<=daysInMonth; d++) { const cell = document.createElement('div'); cell.className = "day-cell"; cell.innerText = d; const dateKey = `${year}-${String(mIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if(db.config.closed_days.includes(dateKey)) cell.classList.add('day-closed'); cell.onclick = () => toggleDay(cell, dateKey); grid.appendChild(cell); } monthDiv.appendChild(grid); container.appendChild(monthDiv); }); }
+    function updCfg(target, day, type, val) { if(target === 'dp') db.config.meals_dp[day][type] = val; else db.config.meals_int[day][type] = val; }
+    function renderCalendar() { const container = document.getElementById('annualCalendar'); container.innerHTML = ""; const startYear = parseInt(document.getElementById('schoolYearSelect').value); const monthsOrder = [8,9,10,11,0,1,2,3,4,5,6,7]; monthsOrder.forEach(mIdx => { const year = mIdx >= 8 ? startYear : startYear + 1; const monthDiv = document.createElement('div'); monthDiv.className = "month-box"; const title = document.createElement('div'); title.className = "month-title"; title.innerText = MONTHS_FR[mIdx] + " " + year; monthDiv.appendChild(title); const grid = document.createElement('div'); grid.className = "days-grid"; ['L','M','M','J','V','S','D'].forEach(l => { const sp = document.createElement('div'); sp.className="day-header"; sp.innerText=l; grid.appendChild(sp); }); const firstDay = new Date(year, mIdx, 1); const lastDay = new Date(year, mIdx+1, 0); const daysInMonth = lastDay.getDate(); let startDow = firstDay.getDay() - 1; if(startDow === -1) startDow = 6; for(let i=0; i<startDow; i++) { grid.appendChild(document.createElement('div')); } for(let d=1; d<=daysInMonth; d++) { const cell = document.createElement('div'); cell.className = "day-cell"; cell.innerText = d; const dateKey = `${year}-${String(mIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if(db.config.closed_days.includes(dateKey)) cell.classList.add('day-closed'); cell.onclick = () => toggleDay(cell, dateKey); grid.appendChild(cell); } monthDiv.appendChild(grid); container.appendChild(monthDiv); }); }
     function toggleDay(el, dateKey) { if(!document.getElementById('paintModeToggle').checked) return; const idx = db.config.closed_days.indexOf(dateKey); if(idx > -1) { db.config.closed_days.splice(idx, 1); el.classList.remove('day-closed'); } else { db.config.closed_days.push(dateKey); el.classList.add('day-closed'); } }
     function isDateClosed(dateStr) { return db.config.closed_days.includes(dateStr); }
     function saveConfig() { db.config.name = document.getElementById('confName').value; db.config.city = document.getElementById('confCity').value; saveData(); alert('Paramétrage Sauvegardé !'); }
@@ -430,66 +410,41 @@
     function processScan(id) {
         if(!id) return;
         const input = document.getElementById('scanInput');
-        const dateStr = document.getElementById('scanDate').value; // Ex: "2026-01-13"
+        const dateStr = document.getElementById('scanDate').value;
 
-        // 1. CORRECTION DATE (Force la date locale)
+        // 1. Correction de la date pour éviter le décalage horaire
         if(!dateStr) return;
         const parts = dateStr.split('-');
-        // On crée la date : Année, Mois (0-11), Jour
+        // On crée la date locale (Mois -1 car Janvier = 0 en JS)
         const localDate = new Date(parts[0], parts[1]-1, parts[2]);
 
-        // 2. Vérification jour fermé (Vacances)
-        if(isDateClosed(dateStr)) {
-            if(!confirm("⚠️ Attention : Ce jour est déclaré FERMÉ (Vacances).\n\nVoulez-vous forcer le passage ?")) {
-                input.value=''; return;
-            }
+        // 2. Vérification jour fermé (Vacances) - On garde juste l'alerte
+        if(isDateClosed(dateStr)) { 
+            if(!confirm("Attention: Jour déclaré FERMÉ (Vacances). Voulez-vous forcer le passage ?")) { 
+                input.value=''; return; 
+            } 
         }
 
-        // 3. Identification
+        // 3. Identification de la personne
         let person = db.students.find(s=>s.id===id);
         let type = 'student';
         if(!person) { person = db.staff.find(s=>s.id===id); type = 'staff'; }
 
-        if(!person) { setStatus("Inconnu au bataillon", "error"); input.value=''; return; }
+        if(!person) { setStatus("Inconnu", "error"); input.value=''; return; }
 
-        // 4. CONTRÔLE DES DROITS (C'est ici que ça se joue)
-        if(type === 'student') {
-            const jsDay = localDate.getDay(); // 0=Dimanche, 1=Lundi, 2=Mardi...
-            const dayKey = DAYS[jsDay];       // Renvoie "Lun", "Mar", etc.
+        // --- ZONE DE BLOCAGE SUPPRIMÉE ---
+        // J'ai effacé tout le code qui vérifiait si c'était Mardi ou si l'élève était DP.
+        // Le logiciel passe directement à la suite.
+        // ---------------------------------
 
-            // On détermine quel tableau de droits regarder
-            let rights = null;
-            if (person.regime === 'INTERNE') {
-                // Si Interne -> Tableau de droite
-                rights = db.config.meals_int[dayKey];
-            } else {
-                // Si DP ou EXTERNE -> Tableau de gauche
-                rights = db.config.meals_dp[dayKey];
-            }
-
-            // Vérification stricte
-            // Si pas de config ou si la case du service (ex: midi) n'est pas cochée
-            if(!rights || rights[currentService] !== true) {
-                // MESSAGE D'ERREUR PRÉCIS
-                setStatus("⛔ REFUSÉ : Pas de droit (" + dayKey + ")", "error");
-                
-                // Petit son d'erreur (optionnel, visuel ici)
-                input.style.backgroundColor = "#ffcccc";
-                setTimeout(()=> input.style.backgroundColor = "white", 500);
-                
-                input.value='';
-                return; // ON BLOQUE L'ACCÈS ICI
-            }
-        }
-
-        // 5. Vérification Doublon (A-t-il déjà mangé ?)
+        // 4. Vérification doublon (A-t-il déjà mangé ce midi ?)
         const exists = db.logs.find(l => l.studentId === id && l.date === dateStr && l.service === currentService);
-        if(exists) { setStatus("⚠️ Déjà passé ce service", "error"); input.value=''; return; }
+        if(exists) { setStatus("Déjà passé", "error"); input.value=''; return; }
 
-        // 6. Validation
+        // 5. Validation et Enregistrement
         db.logs.push({ studentId: id, type: type, date: dateStr, service: currentService, timestamp: new Date().toISOString() });
-        saveData();
-        setStatus("✅ OK : " + person.nom, "success");
+        saveData(); 
+        setStatus("OK : " + person.nom, "success"); 
         input.value='';
     }
     function setStatus(msg, type) { const el = document.getElementById('scanStatus'); el.innerText = msg; el.className = 'status-box ' + (type === 'success' ? 'bg-success-custom' : 'bg-error'); setTimeout(() => { el.innerText="En attente"; el.className='status-box bg-waiting'; }, 1500); }
@@ -694,11 +649,5 @@
         r.readAsText(f);
     }
 </script>
-<div style="position:fixed; bottom:10px; right:10px; z-index:9999;">
-    <button onclick="checkDatabaseRights()" class="btn btn-warning border-dark">
-        🕵️ Inspecter les droits du Mardi
-    </button>
-</div>
-
 </body>
 </html>
