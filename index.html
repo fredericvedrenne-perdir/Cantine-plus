@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cantine+ V40 | Fred Vedrenne</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; }
+        .wrapper { display: flex; height: 100vh; width: 100%; }
+        .sidebar { width: 260px; background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%); color: white; display: flex; flex-direction: column; justify-content: space-between; padding-top: 20px; flex-shrink: 0; box-shadow: 2px 0 10px rgba(0,0,0,0.2); z-index: 1000; }
+        .sidebar-brand { text-align: center; padding: 0 15px 20px 15px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-brand h3 { font-weight: 800; font-size: 2rem; color: white; margin: 0; letter-spacing: 1px; }
+        .plus-symbol { color: #e74c3c; font-weight: 900; font-size: 2.5rem; vertical-align: middle; }
+        .author-sign { font-size: 0.75rem; color: #95a5a6; text-align: center; font-style: italic; display: block; margin-top: 5px; opacity: 0.8; }
+        .nav-links a { color: #bdc3c7; text-decoration: none; display: block; padding: 12px 20px; transition: 0.3s; border-left: 5px solid transparent; font-size: 1.05rem; }
+        .nav-links a:hover, .nav-links a.active { background-color: rgba(255,255,255,0.05); color: white; border-left-color: #3498db; }
+        
+        /* MODIFICATION CSS POUR LE MENU DU BAS */
+        .backup-link { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; padding-bottom: 20px; background: rgba(0,0,0,0.2); }
+        .btn-backup { color: #2ecc71 !important; font-weight: bold; } /* Vert pour sauver */
+        .btn-restore { color: #e74c3c !important; font-weight: bold; margin-top: 5px; font-size: 0.9rem; } /* Rouge pour importer */
+        .btn-backup:hover { background: rgba(46, 204, 113, 0.1); }
+        .btn-restore:hover { background: rgba(231, 76, 60, 0.1); }
+
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; background-color: #f4f6f9; }
+        
+        /* CALENDAR */
+        .calendar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; } 
+        .month-box { background: white; border: 1px solid #ddd; border-radius: 5px; padding: 5px; font-size: 0.8rem; }
+        .month-title { background: #34495e; color: white; text-align: center; padding: 3px; font-weight: bold; border-radius: 3px; margin-bottom: 5px; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+        .day-cell { padding: 4px 0; cursor: pointer; border-radius: 3px; background: #f8f9fa; }
+        .day-cell:hover { background: #e2e6ea; }
+        .day-header { font-weight: bold; color: #7f8c8d; font-size: 0.7rem; }
+        .day-closed { background-color: #e74c3c !important; color: white; }
+        
+        /* Styles */
+        .scan-zone { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
+        .status-box { height: 80px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 800; color: white; border-radius: 10px; margin-top: 20px; }
+        .bg-waiting { background-color: #95a5a6; }
+        .bg-success-custom { background-color: #2ecc71; }
+        .bg-error { background-color: #e74c3c; }
+        .counter-big { font-size: 3.5rem; font-weight: bold; line-height: 1; }
+        .meal-table th { text-align: center; background: #34495e; color: white; font-size: 0.9rem; }
+        .meal-table td { text-align: center; vertical-align: middle; }
+        .meal-check { width: 20px; height: 20px; cursor: pointer; }
+        th.sortable { cursor: pointer; position: relative; }
+        th.sortable:hover { background-color: #ecf0f1; color: #333; }
+        .drop-zone { border: 3px dashed #3498db; border-radius: 12px; padding: 20px; text-align: center; background: #fff; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+        .drop-zone:hover { background: #eaf6ff; border-color: #2980b9; }
+        
+        /* Print */
+        @media print { 
+            .no-print { display: none !important; } .print-area { display: block !important; } .wrapper { display: block; } 
+            .sidebar { display: none; } .main-content { display: none; } body { background: white; }
+            #printGrid { display: grid; gap: 10px; padding: 10px; width: 100%; }
+            .card-ticket { border: 1px dashed #000; padding: 10px; background: white; page-break-inside: avoid; position: relative; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+        }
+        
+        @keyframes fadeOut { 0% {opacity: 1;} 80% {opacity: 1;} 100% {opacity: 0; display:none;} }
+        @keyframes slideDown { from { transform: translateY(-100%); opacity:0; } to { transform: translateY(0); opacity:1; } }
+    </style>
+</head>
+<body>
+
+<input type="file" id="globalRestoreInput" style="display:none" accept=".data,.json" onchange="restoreBackup(this)">
+
+<div class="wrapper">
+    <div class="sidebar no-print">
+        <div>
+            <div class="sidebar-brand">
+                <h3>Cantine<span class="plus-symbol">+</span></h3>
+                <span class="author-sign">By Fred Vedrenne</span>
+            </div>
+            <div class="nav-links">
+                <a href="#" onclick="showPage('scan')" id="nav-scan" class="active"><i class="fas fa-barcode me-2"></i> Passage</a>
+                <a href="#" onclick="showPage('students')" id="nav-students"><i class="fas fa-user-graduate me-2"></i> Élèves</a>
+                <a href="#" onclick="showPage('staff')" id="nav-staff"><i class="fas fa-briefcase me-2"></i> Personnels</a>
+                <a href="#" onclick="showPage('stats')" id="nav-stats"><i class="fas fa-chart-pie me-2"></i> Stats & Éditions</a>
+                <a href="#" onclick="showPage('config')" id="nav-config"><i class="fas fa-sliders-h me-2"></i> Paramétrage</a>
+            </div>
+        </div>
+        
+        <div class="nav-links backup-link">
+            <a href="#" onclick="downloadBackup()" class="btn-backup" title="Télécharger les données">
+                <i class="fas fa-save me-2"></i> Sauvegarder
+            </a>
+            <a href="#" onclick="document.getElementById('globalRestoreInput').click()" class="btn-restore" title="Importer une sauvegarde">
+                <i class="fas fa-file-import me-2"></i> Importer
+            </a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        
+        <div id="page-config" class="page-section" style="display:none;">
+            <h2 class="mb-4">Paramétrage Général</h2>
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card p-3 shadow-sm h-100">
+                        <h4><i class="fas fa-school"></i> Établissement</h4>
+                        <div class="mb-2"><label>Nom</label><input type="text" id="confName" class="form-control"></div>
+                        <div class="mb-2"><label>Ville</label><input type="text" id="confCity" class="form-control"></div>
+                        <button class="btn btn-success w-100 mt-3" onclick="saveConfig()">Enregistrer Infos</button>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="row h-100">
+                        <div class="col-md-6 mb-2">
+                            <div class="card p-2 shadow-sm h-100">
+                                <h6 class="text-primary"><i class="fas fa-utensils"></i> Repas DP</h6>
+                                <table class="table table-bordered meal-table table-sm" style="font-size:0.8rem;">
+                                    <thead><tr><th>J</th><th>Mat</th><th>Mid</th><th>Soi</th></tr></thead>
+                                    <tbody id="mealTableDP"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <div class="card p-2 shadow-sm h-100">
+                                <h6 class="text-danger"><i class="fas fa-bed"></i> Repas INTERNES</h6>
+                                <table class="table table-bordered meal-table table-sm" style="font-size:0.8rem;">
+                                    <thead><tr><th>J</th><th>Mat</th><th>Mid</th><th>Soi</th></tr></thead>
+                                    <tbody id="mealTableInt"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card p-3 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0"><i class="fas fa-calendar-alt"></i> Calendrier Scolaire & Vacances</h4>
+                    <div class="d-flex gap-3 align-items-center">
+                        <label>Année Scolaire :</label>
+                        <select id="schoolYearSelect" class="form-select form-select-sm w-auto" onchange="changeSchoolYear()"></select>
+                        <div class="form-check form-switch ms-3">
+                            <input class="form-check-input" type="checkbox" id="paintModeToggle">
+                            <label class="form-check-label fw-bold" for="paintModeToggle">Mode Pinceau (Vacances) 🖌️</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-light p-2 small border mb-2">
+                    <i class="fas fa-info-circle"></i> Sélectionnez l'année scolaire ci-dessus. Utilisez le pinceau pour marquer les jours fermés en Rouge.
+                </div>
+                <div id="annualCalendar" class="calendar-grid"></div>
+                <div class="text-center mt-3"><button class="btn btn-primary btn-lg" onclick="saveConfig()"><i class="fas fa-save"></i> Sauvegarder Tout</button></div>
+            </div>
+        </div>
+
+        <div id="page-scan" class="page-section">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-check-circle text-primary"></i> Passage Cantine</h2>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="svcMode" id="svcMatin" autocomplete="off" onchange="setService('matin')">
+                        <label class="btn btn-outline-primary" for="svcMatin">Matin</label>
+                        <input type="radio" class="btn-check" name="svcMode" id="svcMidi" autocomplete="off" onchange="setService('midi')">
+                        <label class="btn btn-outline-primary" for="svcMidi">Midi</label>
+                        <input type="radio" class="btn-check" name="svcMode" id="svcSoir" autocomplete="off" onchange="setService('soir')">
+                        <label class="btn btn-outline-primary" for="svcSoir">Soir</label>
+                    </div>
+                    <input type="date" id="scanDate" class="form-control fw-bold" style="width:180px;" onchange="loadDailyStats()">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-7">
+                    <div class="scan-zone">
+                        <i class="fas fa-barcode fa-3x mb-3 text-secondary"></i>
+                        <input type="text" id="scanInput" class="form-control fs-3 text-center" placeholder="Scanner ou taper ID..." autocomplete="off">
+                        <div id="scanStatus" class="status-box bg-waiting">En attente</div>
+                    </div>
+                    <div class="card mt-3 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted"><i class="fas fa-search"></i> Recherche Manuelle</h5>
+                            <input type="text" id="manualSearch" class="form-control" placeholder="Nom et/ou prénom de l'élève ou du personnel" onkeyup="searchGlobal()">
+                            <div id="searchResults" class="list-group mt-2" style="max-height: 200px; overflow-y:auto;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="card h-100 shadow-sm text-center">
+                        <div class="card-header bg-dark text-white">Passages du Jour</div>
+                        <div class="card-body d-flex flex-column">
+                            <div class="counter-big text-primary my-3" id="countTodayDisplay">0</div>
+                            <div class="flex-grow-1" style="overflow: hidden;">
+                                <h6 class="text-muted text-start border-bottom pb-1 mb-2">10 Derniers passages</h6>
+                                <ul class="list-group list-group-flush text-start" id="todayList" style="max-height: 600px; overflow-y: auto;"></ul>
+                            </div>
+                            <hr>
+                            <button class="btn btn-danger w-100 fw-bold" onclick="showMissingModal()">
+                                <i class="fas fa-bullhorn"></i> Vie Scolaire : Qui n'a pas mangé ?
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-students" class="page-section" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2><i class="fas fa-user-graduate"></i> Élèves</h2>
+                <div>
+                    <button class="btn btn-success me-2" onclick="new bootstrap.Modal(document.getElementById('addStudentModal')).show()"><i class="fas fa-plus"></i> Ajouter</button>
+                    <button class="btn btn-warning me-2" onclick="openStudentIdModal()"><i class="fas fa-cog"></i> Générer ID</button>
+                    <button class="btn btn-dark" onclick="openPrintConfig('student')"><i class="fas fa-print"></i> Badges PDF</button>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-8">
+                     <div id="drop-student" class="drop-zone p-2 mb-0 d-flex justify-content-center align-items-center gap-3">
+                        <i class="fas fa-cloud-upload-alt fa-2x"></i> <span class="small">Importer (XLSX/CSV)</span>
+                        <input type="file" id="fileInputStd" style="display:none;" onchange="handleImport('student', this.files[0])">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group h-100"><span class="input-group-text"><i class="fas fa-search"></i></span><input type="text" id="searchStudentInput" class="form-control" placeholder="Rechercher..." onkeyup="filterTable('studentTable', this.value)"></div>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm" style="max-height:600px; overflow:auto;">
+                <table class="table table-hover mb-0 sticky-top" id="studentTable">
+                    <thead class="table-light"><tr><th class="sortable" onclick="sortTable('studentTable',0)">ID <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('studentTable',1)">Nom <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('studentTable',2)">Prénom <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('studentTable',3)">Classe <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('studentTable',4)">Régime <i class="fas fa-sort"></i></th><th>Action</th></tr></thead>
+                    <tbody id="studentTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="page-staff" class="page-section" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2><i class="fas fa-briefcase"></i> Personnels</h2>
+                <div>
+                    <button class="btn btn-success me-2" onclick="new bootstrap.Modal(document.getElementById('addStaffModal')).show()"><i class="fas fa-plus"></i> Ajouter</button>
+                    <button class="btn btn-warning me-2" onclick="openStaffIdModal()"><i class="fas fa-cog"></i> Générer ID</button>
+                    <button class="btn btn-dark" onclick="openPrintConfig('staff')"><i class="fas fa-print"></i> Badges PDF</button>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-8">
+                     <div id="drop-staff" class="drop-zone p-2 mb-0 d-flex justify-content-center align-items-center gap-3">
+                        <i class="fas fa-user-tie fa-2x"></i> <span class="small">Importer (XLSX/CSV)</span>
+                        <input type="file" id="fileInputStaff" style="display:none;" onchange="handleImport('staff', this.files[0])">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group h-100"><span class="input-group-text"><i class="fas fa-search"></i></span><input type="text" id="searchStaffInput" class="form-control" placeholder="Rechercher..." onkeyup="filterTable('staffTable', this.value)"></div>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm">
+                <table class="table table-hover mb-0" id="staffTable">
+                    <thead class="table-light"><tr><th class="sortable" onclick="sortTable('staffTable',0)">ID <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('staffTable',1)">Nom <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('staffTable',2)">Prénom <i class="fas fa-sort"></i></th><th class="sortable" onclick="sortTable('staffTable',3)">Fonction <i class="fas fa-sort"></i></th><th>Action</th></tr></thead>
+                    <tbody id="staffTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="page-stats" class="page-section" style="display:none;">
+            <h2>Statistiques & Éditions</h2>
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <div class="row align-items-end">
+                        <div class="col-md-5">
+                            <label class="small text-muted fw-bold">Sélectionner la semaine :</label>
+                            <select id="weekSelector" class="form-select" onchange="renderReportTable()"></select>
+                            <small class="text-primary" id="statsYearDisplay"></small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted">Filtre :</label>
+                            <input type="text" id="tableFilter" class="form-control" placeholder="Nom, Classe..." onkeyup="filterReportTable()">
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-outline-danger" onclick="exportPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+                            <button class="btn btn-outline-success" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="viewMode" id="vmPres" checked onchange="renderReportTable()">
+                        <label class="btn btn-outline-success" for="vmPres">PRÉSENCES</label>
+                        <input type="radio" class="btn-check" name="viewMode" id="vmAbs" onchange="renderReportTable()">
+                        <label class="btn btn-outline-danger" for="vmAbs">ABSENCES</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="toggleExternes" onchange="renderReportTable()">
+                        <label class="form-check-label" for="toggleExternes">Voir Externes</label>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped" id="reportTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="sortable" onclick="sortTable('reportTable',0)">Nom <i class="fas fa-sort"></i></th>
+                                <th class="sortable" onclick="sortTable('reportTable',1)">Prénom <i class="fas fa-sort"></i></th>
+                                <th class="sortable" onclick="sortTable('reportTable',2)">Classe <i class="fas fa-sort"></i></th>
+                                <th class="sortable" onclick="sortTable('reportTable',3)">Régime <i class="fas fa-sort"></i></th>
+                                <th class="sortable text-center" onclick="sortTable('reportTable',4)">Total <i class="fas fa-sort"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<div class="modal fade" id="missingModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title">Qui n'a pas mangé ?</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>Liste des élèves autorisés à ce service mais non passés :</p><ul id="missingList" class="list-group"></ul></div></div></div></div>
+<div class="modal fade" id="idModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Générer ID Élèves</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><button class="btn btn-success w-100 mb-2" onclick="generateStudentIDs(false)">Manquants uniquement</button><button class="btn btn-danger w-100" onclick="generateStudentIDs(true)">Tout écraser</button></div></div></div></div>
+<div class="modal fade" id="staffIdModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-warning"><h5 class="modal-title">Générer ID Personnel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted">Génère des ID format 'Pxxxx'.</p><button class="btn btn-success w-100 mb-2" onclick="generateStaffIDs(false)">Manquants uniquement</button><button class="btn btn-danger w-100" onclick="generateStaffIDs(true)">Tout écraser</button></div></div></div></div>
+<div class="modal fade" id="addStudentModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Ajouter Élève</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" id="newStNom" class="form-control mb-2" placeholder="Nom"><input type="text" id="newStPre" class="form-control mb-2" placeholder="Prénom"><input type="text" id="newStClasse" class="form-control mb-2" placeholder="Classe"><select id="newStRegime" class="form-select mb-2"><option value="DP">DP</option><option value="INTERNE">INTERNE</option><option value="EXTERNE">EXTERNE</option></select></div><div class="modal-footer"><button type="button" class="btn btn-success" onclick="saveNewStudent()">Enregistrer</button></div></div></div></div>
+<div class="modal fade" id="editStudentModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-success text-white"><h5 class="modal-title">Éditer Élève</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="editStId"><input type="text" id="editStNom" class="form-control mb-2" placeholder="Nom"><input type="text" id="editStPre" class="form-control mb-2" placeholder="Prénom"><input type="text" id="editStClasse" class="form-control mb-2" placeholder="Classe"><select id="editStRegime" class="form-select mb-2"><option value="DP">DP</option><option value="INTERNE">INTERNE</option><option value="EXTERNE">EXTERNE</option></select></div><div class="modal-footer"><button type="button" class="btn btn-success" onclick="saveEditStudent()">Sauvegarder</button></div></div></div></div>
+
+<div class="modal fade" id="addStaffModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Ajouter Personnel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><select id="newStaffCiv" class="form-select mb-2"><option>M.</option><option>Mme</option></select><input type="text" id="newStaffNom" class="form-control mb-2" placeholder="Nom"><input type="text" id="newStaffPre" class="form-control mb-2" placeholder="Prénom"><input type="text" id="newStaffFonc" class="form-control mb-2" placeholder="Fonction"></div><div class="modal-footer"><button type="button" class="btn btn-success" onclick="saveNewStaff()">Enregistrer</button></div></div></div></div>
+<div class="modal fade" id="editStaffModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-success text-white"><h5 class="modal-title">Éditer Personnel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="editStaffId"><select id="editStaffCiv" class="form-select mb-2"><option>M.</option><option>Mme</option></select><input type="text" id="editStaffNom" class="form-control mb-2" placeholder="Nom"><input type="text" id="editStaffPre" class="form-control mb-2" placeholder="Prénom"><input type="text" id="editStaffFonc" class="form-control mb-2" placeholder="Fonction"></div><div class="modal-footer"><button type="button" class="btn btn-success" onclick="saveEditStaff()">Sauvegarder</button></div></div></div></div>
+
+<div class="modal fade" id="printConfigModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title">🖨️ Configuration Badges</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>Ajustez la grille selon vos planches d'étiquettes.</p><div class="row"><div class="col-6"><label>Colonnes (Vertical)</label><input type="number" id="printCols" class="form-control text-center" value="2" min="1" max="5"></div><div class="col-6"><label>Lignes (Horizontal)</label><input type="number" id="printRows" class="form-control text-center" value="4" min="1" max="10"></div></div><div class="mt-3 text-center text-muted small"><i class="fas fa-info-circle"></i> Le régime s'affichera en haut à gauche.</div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button type="button" class="btn btn-primary" onclick="confirmPrint()">Lancer l'impression</button></div></div></div></div>
+<div class="modal fade" id="importChoiceModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-info text-white"><h5 class="modal-title">Option d'Importation</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>Des données personnel ont été trouvées. Que souhaitez-vous faire ?</p><div class="d-grid gap-2"><button class="btn btn-outline-success" onclick="finalizeStaffImport('append')"><i class="fas fa-plus-circle"></i> Ajouter les nouveaux (Garder existants)</button><button class="btn btn-danger" onclick="finalizeStaffImport('overwrite')"><i class="fas fa-trash-alt"></i> Tout Écraser (Remplacer liste)</button></div></div></div></div></div>
+
+<div id="printArea" class="print-area" style="display:none;"></div>
+
+<script>
+    // MODULE AUTO-SAVE
+    function autoSave() { if(typeof db!=='undefined'&&db){localStorage.setItem('Cantine_Plus_AutoSave',JSON.stringify(db));showToast("💾 Sauvegarde auto...");} }
+    function showToast(msg) { let t=document.createElement('div');t.style.cssText="position:fixed;bottom:20px;right:20px;background:#2c3e50;color:#fff;padding:10px 20px;border-radius:5px;box-shadow:0 2px 10px rgba(0,0,0,0.2);animation:fadeOut 2.5s forwards;z-index:9999;font-size:0.9rem;font-family:Segoe UI;";t.innerText=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500); }
+    document.addEventListener('change',autoSave); document.addEventListener('mouseup',function(){setTimeout(autoSave,500);}); document.addEventListener('keyup',function(){if(window.saveTimeout)clearTimeout(window.saveTimeout);window.saveTimeout=setTimeout(autoSave,2000);});
+    window.addEventListener('beforeunload',function(e){e.preventDefault();e.returnValue='';});
+
+    // LOGIQUE PRINCIPALE
+    let db = { students: [], staff: [], logs: [], config: { meals_dp: {}, meals_int: {}, closed_days: [], name:'', city:'', year: 2023 } };
+    let pendingImportData = [];
+    const DAYS = ['Dim','Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']; 
+    const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+    let currentService = "midi"; 
+    let currentPrintType = "student"; 
+
+    // --- BLOC DE DÉMARRAGE ET RÉPARATION ---
+    window.onload = function() {
+        // 1. Chargement des données
+        if(localStorage.getItem('cantineV40')) db = JSON.parse(localStorage.getItem('cantineV40'));
+        else if(localStorage.getItem('cantineV39')) db = JSON.parse(localStorage.getItem('cantineV39'));
+        
+        // 2. Initialisation des structures si absentes
+        if(!db.staff) db.staff = [];
+        if(!db.config) db.config = {}; // Sécurité
+        if(!db.config.meals_dp) db.config.meals_dp = {};
+        if(!db.config.meals_int) db.config.meals_int = {};
+        if(!db.config.closed_days) db.config.closed_days = [];
+        if(!db.config.year) db.config.year = new Date().getMonth()<7 ? new Date().getFullYear()-1 : new Date().getFullYear();
+        
+        // 3. RÉPARATION FORCÉE DES JOURS MANQUANTS (Le point critique)
+        DAYS.forEach(d => {
+            // Si le jour n'existe pas pour les DP, on le crée
+            if(!db.config.meals_dp[d]) {
+                console.log("Réparation du jour manquant (DP) : " + d);
+                db.config.meals_dp[d] = { matin: false, midi: true, soir: false };
+            }
+            // Si le jour n'existe pas pour les Internes, on le crée
+            if(!db.config.meals_int[d]) {
+                console.log("Réparation du jour manquant (INT) : " + d);
+                db.config.meals_int[d] = { matin: true, midi: true, soir: true };
+            }
+        });
+
+        // 4. Initialisation de l'interface
+        document.getElementById('scanDate').valueAsDate = new Date();
+        populateYearSelector();
+        document.getElementById('schoolYearSelect').value = db.config.year;
+        populateWeekSelector(db.config.year);
+        renderCalendar();
+        autoSelectService();
+        renderMealTables(); // Va maintenant afficher les cases correctement
+        updateUI();
+        setupDragDrop('drop-student', 'fileInputStd', 'student');
+        setupDragDrop('drop-staff', 'fileInputStaff', 'staff');
+        
+        const scanIn = document.getElementById('scanInput');
+        scanIn.focus();
+        scanIn.addEventListener('keydown', e => { if(e.key==='Enter') { e.preventDefault(); processScan(scanIn.value.trim()); } });
+
+        // Sauvegarde immédiate de la structure réparée
+        saveData();
+    };
+
+    // --- FONCTION DE MISE À JOUR SÉCURISÉE (updCfg) ---
+    function updCfg(target, day, type, val) { 
+        // Sécurité anti-crash : si le jour n'existe pas, on le crée à la volée
+        if(target === 'dp') {
+            if(!db.config.meals_dp[day]) db.config.meals_dp[day] = { matin: false, midi: true, soir: false };
+            db.config.meals_dp[day][type] = val; 
+        } else { 
+            if(!db.config.meals_int[day]) db.config.meals_int[day] = { matin: true, midi: true, soir: true };
+            db.config.meals_int[day][type] = val; 
+        }
+        // On sauvegarde immédiatement le changement
+        saveData();
+    }
+
+    function saveData() { localStorage.setItem('cantineV40', JSON.stringify(db)); updateUI(); }
+    function updateUI() { document.getElementById('confName').value = db.config.name || ''; document.getElementById('confCity').value = db.config.city || ''; loadDailyStats(); }
+    function showPage(pid) { document.querySelectorAll('.page-section').forEach(e => e.style.display='none'); document.getElementById('page-'+pid).style.display='block'; document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active')); document.getElementById('nav-'+pid).classList.add('active'); if(pid==='scan') setTimeout(()=>document.getElementById('scanInput').focus(),100); if(pid==='students') renderStudents(); if(pid==='staff') renderStaff(); if(pid==='stats') renderReportTable(); if(pid==='config') { document.getElementById('schoolYearSelect').value = db.config.year; renderCalendar(); } }
+
+    function populateYearSelector() { 
+        const sel = document.getElementById('schoolYearSelect'); sel.innerHTML = ""; 
+        for(let y = 2023; y <= 2050; y++) { const opt = document.createElement('option'); opt.value = y; opt.text = `${y}-${y+1}`; sel.appendChild(opt); } 
+    }
+    function changeSchoolYear() { db.config.year = parseInt(document.getElementById('schoolYearSelect').value); saveData(); renderCalendar(); populateWeekSelector(db.config.year); }
+    function initMealConfig() { db.config.meals_dp = {}; db.config.meals_int = {}; DAYS.forEach(d => { db.config.meals_dp[d] = { matin: false, midi: true, soir: false }; db.config.meals_int[d] = { matin: true, midi: true, soir: true }; }); }
+    function renderMealTables() { const order = [1,2,3,4,5,6,0]; const tDP = document.getElementById('mealTableDP'); tDP.innerHTML=''; const tInt = document.getElementById('mealTableInt'); tInt.innerHTML=''; order.forEach(idx => { const d = DAYS[idx]; tDP.innerHTML += `<tr><td><b>${d}</b></td><td><input type="checkbox" class="meal-check" onchange="updCfg('dp','${d}','matin',this.checked)" ${db.config.meals_dp[d]?.matin?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('dp','${d}','midi',this.checked)" ${db.config.meals_dp[d]?.midi?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('dp','${d}','soir',this.checked)" ${db.config.meals_dp[d]?.soir?'checked':''}></td></tr>`; tInt.innerHTML += `<tr><td><b>${d}</b></td><td><input type="checkbox" class="meal-check" onchange="updCfg('int','${d}','matin',this.checked)" ${db.config.meals_int[d]?.matin?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('int','${d}','midi',this.checked)" ${db.config.meals_int[d]?.midi?'checked':''}></td><td><input type="checkbox" class="meal-check" onchange="updCfg('int','${d}','soir',this.checked)" ${db.config.meals_int[d]?.soir?'checked':''}></td></tr>`; }); }
+        function renderCalendar() { const container = document.getElementById('annualCalendar'); container.innerHTML = ""; const startYear = parseInt(document.getElementById('schoolYearSelect').value); const monthsOrder = [8,9,10,11,0,1,2,3,4,5,6,7]; monthsOrder.forEach(mIdx => { const year = mIdx >= 8 ? startYear : startYear + 1; const monthDiv = document.createElement('div'); monthDiv.className = "month-box"; const title = document.createElement('div'); title.className = "month-title"; title.innerText = MONTHS_FR[mIdx] + " " + year; monthDiv.appendChild(title); const grid = document.createElement('div'); grid.className = "days-grid"; ['L','M','M','J','V','S','D'].forEach(l => { const sp = document.createElement('div'); sp.className="day-header"; sp.innerText=l; grid.appendChild(sp); }); const firstDay = new Date(year, mIdx, 1); const lastDay = new Date(year, mIdx+1, 0); const daysInMonth = lastDay.getDate(); let startDow = firstDay.getDay() - 1; if(startDow === -1) startDow = 6; for(let i=0; i<startDow; i++) { grid.appendChild(document.createElement('div')); } for(let d=1; d<=daysInMonth; d++) { const cell = document.createElement('div'); cell.className = "day-cell"; cell.innerText = d; const dateKey = `${year}-${String(mIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if(db.config.closed_days.includes(dateKey)) cell.classList.add('day-closed'); cell.onclick = () => toggleDay(cell, dateKey); grid.appendChild(cell); } monthDiv.appendChild(grid); container.appendChild(monthDiv); }); }
+    function toggleDay(el, dateKey) { if(!document.getElementById('paintModeToggle').checked) return; const idx = db.config.closed_days.indexOf(dateKey); if(idx > -1) { db.config.closed_days.splice(idx, 1); el.classList.remove('day-closed'); } else { db.config.closed_days.push(dateKey); el.classList.add('day-closed'); } }
+    function isDateClosed(dateStr) { return db.config.closed_days.includes(dateStr); }
+    function saveConfig() { db.config.name = document.getElementById('confName').value; db.config.city = document.getElementById('confCity').value; saveData(); alert('Paramétrage Sauvegardé !'); }
+
+    function autoSelectService() { const h = new Date().getHours(); let s = "midi"; if(h < 10) s = "matin"; else if(h > 16) s = "soir"; setService(s); }
+    function setService(s) { currentService = s; document.getElementById('svcMatin').checked = (s==='matin'); document.getElementById('svcMidi').checked = (s==='midi'); document.getElementById('svcSoir').checked = (s==='soir'); loadDailyStats(); }
+    function processScan(id) {
+        if(!id) return;
+        const input = document.getElementById('scanInput');
+        const dateStr = document.getElementById('scanDate').value; // Ex: "2026-01-13"
+
+        // 1. CORRECTION DATE (Force la date locale)
+        if(!dateStr) return;
+        const parts = dateStr.split('-');
+        // On crée la date : Année, Mois (0-11), Jour
+        const localDate = new Date(parts[0], parts[1]-1, parts[2]);
+
+        // 2. Vérification jour fermé (Vacances)
+        if(isDateClosed(dateStr)) {
+            if(!confirm("⚠️ Attention : Ce jour est déclaré FERMÉ (Vacances).\n\nVoulez-vous forcer le passage ?")) {
+                input.value=''; return;
+            }
+        }
+
+        // 3. Identification
+        let person = db.students.find(s=>s.id===id);
+        let type = 'student';
+        if(!person) { person = db.staff.find(s=>s.id===id); type = 'staff'; }
+
+        if(!person) { setStatus("Inconnu au bataillon", "error"); input.value=''; return; }
+
+        // 4. CONTRÔLE DES DROITS (C'est ici que ça se joue)
+        if(type === 'student') {
+            const jsDay = localDate.getDay(); // 0=Dimanche, 1=Lundi, 2=Mardi...
+            const dayKey = DAYS[jsDay];       // Renvoie "Lun", "Mar", etc.
+
+            // On détermine quel tableau de droits regarder
+            let rights = null;
+            if (person.regime === 'INTERNE') {
+                // Si Interne -> Tableau de droite
+                rights = db.config.meals_int[dayKey];
+            } else {
+                // Si DP ou EXTERNE -> Tableau de gauche
+                rights = db.config.meals_dp[dayKey];
+            }
+
+            // Vérification stricte
+            // Si pas de config ou si la case du service (ex: midi) n'est pas cochée
+            if(!rights || rights[currentService] !== true) {
+                // MESSAGE D'ERREUR PRÉCIS
+                setStatus("⛔ REFUSÉ : Pas de droit (" + dayKey + ")", "error");
+                
+                // Petit son d'erreur (optionnel, visuel ici)
+                input.style.backgroundColor = "#ffcccc";
+                setTimeout(()=> input.style.backgroundColor = "white", 500);
+                
+                input.value='';
+                return; // ON BLOQUE L'ACCÈS ICI
+            }
+        }
+
+        // 5. Vérification Doublon (A-t-il déjà mangé ?)
+        const exists = db.logs.find(l => l.studentId === id && l.date === dateStr && l.service === currentService);
+        if(exists) { setStatus("⚠️ Déjà passé ce service", "error"); input.value=''; return; }
+
+        // 6. Validation
+        db.logs.push({ studentId: id, type: type, date: dateStr, service: currentService, timestamp: new Date().toISOString() });
+        saveData();
+        setStatus("✅ OK : " + person.nom, "success");
+        input.value='';
+    }
+    function setStatus(msg, type) { const el = document.getElementById('scanStatus'); el.innerText = msg; el.className = 'status-box ' + (type === 'success' ? 'bg-success-custom' : 'bg-error'); setTimeout(() => { el.innerText="En attente"; el.className='status-box bg-waiting'; }, 1500); }
+    function searchGlobal() { const q = document.getElementById('manualSearch').value.toLowerCase(); const res = document.getElementById('searchResults'); res.innerHTML=''; if(q.length<2) return; const all = [...db.students.map(s=>({...s, t:'Eleve'})), ...db.staff.map(s=>({...s, t:'Pers'}))]; all.filter(p => { const n = (p.nom || "").toLowerCase(); const pr = (p.prenom || "").toLowerCase(); return n.includes(q) || pr.includes(q); }).slice(0,5).forEach(p => { const item = document.createElement('div'); item.className='list-group-item d-flex justify-content-between align-items-center'; item.innerHTML=`<div><b>${p.nom} ${p.prenom}</b> <small>(${p.id})</small></div><button class="btn btn-success btn-sm"><i class="fas fa-check"></i></button>`; item.querySelector('button').onclick = () => { processScan(p.id); document.getElementById('manualSearch').value=''; res.innerHTML=''; }; res.appendChild(item); }); }
+
+    function openStudentIdModal() { new bootstrap.Modal(document.getElementById('idModal')).show(); }
+    function openStaffIdModal() { new bootstrap.Modal(document.getElementById('staffIdModal')).show(); }
+    function saveNewStudent() { const nom=document.getElementById('newStNom').value.toUpperCase(), pre=document.getElementById('newStPre').value; if(!nom) return alert("Nom requis"); let nid; do { nid = Math.floor(1000+Math.random()*9000); } while(db.students.find(s=>s.id==nid)); db.students.push({id:String(nid), nom:nom, prenom:pre, classe:document.getElementById('newStClasse').value, regime:document.getElementById('newStRegime').value}); saveData(); renderStudents(); bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide(); }
+    function saveNewStaff() { const nom=document.getElementById('newStaffNom').value.toUpperCase(); if(!nom) return alert("Nom requis"); let nid; do { nid = "P"+Math.floor(1000+Math.random()*9000); } while(db.staff.find(s=>s.id==nid)); db.staff.push({id:nid, civilite:document.getElementById('newStaffCiv').value, nom:nom, prenom:document.getElementById('newStaffPre').value, fonction:document.getElementById('newStaffFonc').value}); saveData(); renderStaff(); bootstrap.Modal.getInstance(document.getElementById('addStaffModal')).hide(); }
+    function deleteStudent(id) { if(confirm("Supprimer ?")) { db.students = db.students.filter(s => s.id !== id); saveData(); renderStudents(); } }
+    function deleteStaff(id) { if(confirm("Supprimer ?")) { db.staff = db.staff.filter(s => s.id !== id); saveData(); renderStaff(); } }
+    function filterTable(tid, q) { const r=document.getElementById(tid).querySelector('tbody').rows; for(let tr of r) tr.style.display=tr.innerText.toLowerCase().includes(q.toLowerCase())?'':'none'; }
+    function sortTable(tid, c) { const tb=document.getElementById(tid).querySelector('tbody'); const r=Array.from(tb.rows); r.sort((a,b)=>a.cells[c].innerText.localeCompare(b.cells[c].innerText)); r.forEach(tr=>tb.appendChild(tr)); }
+    function generateStudentIDs(force) { let c=0; db.students.forEach(s=>{if(force||!s.id){s.id=String(Math.floor(1000+Math.random()*9000));c++}}); saveData(); renderStudents(); alert(c+" ID générés"); }
+    function generateStaffIDs(force) { let c=0; db.staff.forEach(s=>{if(force||!s.id){s.id="P"+Math.floor(1000+Math.random()*9000);c++}}); saveData(); renderStaff(); alert(c+" ID générés"); }
+    
+    // NOUVELLES FONCTIONS D'EDITION ET RENDU MODIFIÉ
+    function renderStudents() { 
+        document.querySelector('#studentTable tbody').innerHTML=db.students.map(s=>`
+        <tr>
+            <td>${s.id||'-'}</td>
+            <td>${s.nom}</td>
+            <td>${s.prenom}</td>
+            <td>${s.classe}</td>
+            <td>${s.regime}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-success me-1" onclick="openEditStudent('${s.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${s.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join(''); 
+    }
+    
+    function renderStaff() { 
+        document.querySelector('#staffTable tbody').innerHTML=db.staff.map(s=>`
+        <tr>
+            <td>${s.id}</td>
+            <td>${s.nom}</td>
+            <td>${s.prenom}</td>
+            <td>${s.fonction}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-success me-1" onclick="openEditStaff('${s.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteStaff('${s.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join(''); 
+    }
+
+    function openEditStudent(id) {
+        const s = db.students.find(x => x.id === id);
+        if(!s) return;
+        document.getElementById('editStId').value = s.id;
+        document.getElementById('editStNom').value = s.nom;
+        document.getElementById('editStPre').value = s.prenom;
+        document.getElementById('editStClasse').value = s.classe;
+        document.getElementById('editStRegime').value = s.regime;
+        new bootstrap.Modal(document.getElementById('editStudentModal')).show();
+    }
+
+    function saveEditStudent() {
+        const id = document.getElementById('editStId').value;
+        const s = db.students.find(x => x.id === id);
+        if(s) {
+            s.nom = document.getElementById('editStNom').value.toUpperCase();
+            s.prenom = document.getElementById('editStPre').value;
+            s.classe = document.getElementById('editStClasse').value;
+            s.regime = document.getElementById('editStRegime').value;
+            saveData();
+            renderStudents();
+            bootstrap.Modal.getInstance(document.getElementById('editStudentModal')).hide();
+        }
+    }
+
+    function openEditStaff(id) {
+        const s = db.staff.find(x => x.id === id);
+        if(!s) return;
+        document.getElementById('editStaffId').value = s.id;
+        document.getElementById('editStaffCiv').value = s.civilite || 'M.';
+        document.getElementById('editStaffNom').value = s.nom;
+        document.getElementById('editStaffPre').value = s.prenom;
+        document.getElementById('editStaffFonc').value = s.fonction;
+        new bootstrap.Modal(document.getElementById('editStaffModal')).show();
+    }
+
+    function saveEditStaff() {
+        const id = document.getElementById('editStaffId').value;
+        const s = db.staff.find(x => x.id === id);
+        if(s) {
+            s.civilite = document.getElementById('editStaffCiv').value;
+            s.nom = document.getElementById('editStaffNom').value.toUpperCase();
+            s.prenom = document.getElementById('editStaffPre').value;
+            s.fonction = document.getElementById('editStaffFonc').value;
+            saveData();
+            renderStaff();
+            bootstrap.Modal.getInstance(document.getElementById('editStaffModal')).hide();
+        }
+    }
+    
+    // --- PDF HIGH QUALITY ---
+    function generateHighResBarcode(text) { const canvas = document.createElement("canvas"); JsBarcode(canvas, text, { format: "CODE128", width: 4, height: 100, displayValue: false, margin: 0 }); return canvas.toDataURL("image/png"); }
+    function openPrintConfig(type) { const list = type === 'student' ? db.students : db.staff; if(list.length === 0) return alert("Liste vide."); currentPrintType = type; new bootstrap.Modal(document.getElementById('printConfigModal')).show(); }
+    function confirmPrint() {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const type = currentPrintType; const list = (type === 'student' ? db.students : db.staff).filter(s => s.id); const cols = parseInt(document.getElementById('printCols').value); const rows = parseInt(document.getElementById('printRows').value); const pageWidth = 210, pageHeight = 297, margin = 10; const cardW = (pageWidth - (2 * margin)) / cols; const cardH = (pageHeight - (2 * margin)) / rows; let count = 0;
+        list.forEach((p) => {
+            if (count > 0 && count % (cols * rows) === 0) doc.addPage();
+            const indexOnPage = count % (cols * rows); const colIndex = indexOnPage % cols; const rowIndex = Math.floor(indexOnPage / cols); const x = margin + (colIndex * cardW); const y = margin + (rowIndex * cardH);
+            doc.setLineDash([1, 1], 0); doc.setDrawColor(0); doc.rect(x, y, cardW, cardH); doc.setLineDash([]); 
+            const schoolName = db.config.name || "Etablissement"; doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text(schoolName, x + 5, y + 8); doc.line(x + 2, y + 10, x + cardW - 2, y + 10);
+            if (type === 'student') { doc.setTextColor(200, 0, 0); doc.setFontSize(8); doc.text(p.regime || "", x + 5, y + 18); doc.setTextColor(0, 0, 0); }
+            if (type === 'student') { const sub = p.classe || ""; if(sub) { doc.setFontSize(10); doc.setFont("helvetica", "bold"); const txtW = doc.getTextWidth(sub); doc.rect(x + cardW - txtW - 8, y + 13, txtW + 4, 6); doc.text(sub, x + cardW - txtW - 6, y + 17.5); } }
+            doc.setFont("helvetica", "bold"); doc.setFontSize(14); const nomW = doc.getTextWidth(p.nom); const centerY = y + (cardH / 2); doc.text(p.nom, x + (cardW / 2) - (nomW / 2), centerY - 3); doc.setFont("helvetica", "normal"); doc.setFontSize(12); const prenomW = doc.getTextWidth(p.prenom); doc.text(p.prenom, x + (cardW / 2) - (prenomW / 2), centerY + 3);
+            try { const imgData = generateHighResBarcode(p.id); const bcW = cardW - 20; const bcH = 12; doc.addImage(imgData, 'PNG', x + 10, y + cardH - 22, bcW, bcH); doc.setFont("helvetica", "normal"); doc.setFontSize(10); const idW = doc.getTextWidth(p.id); doc.text(p.id, x + (cardW / 2) - (idW / 2), y + cardH - 5); } catch(e) {}
+            count++;
+        });
+        bootstrap.Modal.getInstance(document.getElementById('printConfigModal')).hide(); doc.save("badges_cantine.pdf");
+    }
+
+    // --- IMPORTS ---
+    function setupDragDrop(zid, iid, type) { const z=document.getElementById(zid),i=document.getElementById(iid); z.onclick=()=>i.click(); z.ondragover=e=>{e.preventDefault();z.style.background='#eaf6ff'}; z.ondragleave=()=>z.style.background='#fff'; z.ondrop=e=>{e.preventDefault();z.style.background='#fff'; if(e.dataTransfer.files.length) handleImport(type, e.dataTransfer.files[0])}; }
+    function handleImport(type, file) { const r=new FileReader(); r.onload=e=>{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const j=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); 
+        if(type === 'staff') { pendingImportData = j; new bootstrap.Modal(document.getElementById('importChoiceModal')).show(); } else { let c=0; j.forEach(row=>{ if(row["Nom"]){ if(!db.students.find(s=>s.nom===row["Nom"]&&s.prenom===row["Prénom"])) { db.students.push({id:"", nom:row["Nom"], prenom:row["Prénom"], classe:row["Classe"], regime:row["Régime"] && row["Régime"].toUpperCase().includes("EXT")?"EXTERNE":(row["Régime"]&&row["Régime"].toUpperCase().includes("INT")?"INTERNE":"DP")}); c++; } } }); saveData(); alert(c+" ajoutés"); renderStudents(); } }; r.readAsArrayBuffer(file); }
+    function finalizeStaffImport(mode) { if(mode==='overwrite'){ if(!confirm("Supprimer existants ?")) return; db.staff=[]; } let c=0; pendingImportData.forEach(row=>{ if(row["Nom"]){ if(mode==='append'&&db.staff.find(s=>s.nom===row["Nom"]&&s.prenom===row["Prénom"]))return; db.staff.push({id:"P"+Math.floor(1000+Math.random()*9000), civilite:row["Civilité"], nom:row["Nom"], prenom:row["Prénom"], fonction:row["Fonction"]}); c++; } }); saveData(); renderStaff(); bootstrap.Modal.getInstance(document.getElementById('importChoiceModal')).hide(); alert(c+" ajoutés"); }
+
+    // --- STATS ---
+    function populateWeekSelector(y) { 
+        const sel=document.getElementById('weekSelector'); sel.innerHTML=""; document.getElementById('statsYearDisplay').innerText=`Année : ${y}-${y+1}`; 
+        
+        // Trouver le premier Lundi de Septembre
+        let cur = new Date(y, 8, 1); // 1er Septembre
+        while(cur.getDay() !== 1) cur.setDate(cur.getDate()+1); // Avancer au prochain Lundi
+        
+        let wn = 1; 
+        // Générer jusqu'à fin juillet de l'année suivante
+        const limitDate = new Date(y + 1, 6, 31); 
+
+        while (cur <= limitDate) {
+            const end = new Date(cur); end.setDate(end.getDate()+6); 
+            const opt = document.createElement('option'); 
+            opt.value = cur.toISOString().split('T')[0]; 
+            opt.text = `Semaine ${wn} (${cur.toLocaleDateString()} - ${end.toLocaleDateString()})`; 
+            
+            const now = new Date(); 
+            if(now >= cur && now <= end) opt.selected = true; 
+            
+            sel.appendChild(opt); 
+            cur.setDate(cur.getDate()+7); 
+            wn++; 
+        }
+    }
+
+    function renderReportTable() { const tbody=document.getElementById('reportTableBody'); tbody.innerHTML=''; const startStr=document.getElementById('weekSelector').value; if(!startStr)return; const start=new Date(startStr); const end=new Date(start); end.setDate(end.getDate()+6); const logs=db.logs.filter(l=>{const d=new Date(l.date); return d>=start && d<=end}); let openDays=[]; let c=new Date(start); for(let i=0;i<7;i++){ const dStr=c.toISOString().split('T')[0]; if(!isDateClosed(dStr)) openDays.push({dStr, day:DAYS[c.getDay()]}); c.setDate(c.getDate()+1); } const ext=document.getElementById('toggleExternes').checked; const abs=document.getElementById('vmAbs').checked; db.students.filter(s=>ext||s.regime!=='EXTERNE').forEach(s=>{ const count=logs.filter(l=>l.studentId===s.id).length; let exp=0; if(s.regime!=='EXTERNE') { openDays.forEach(od=>{ const r=s.regime==='INTERNE'?db.config.meals_int[od.day]:db.config.meals_dp[od.day]; if(r.matin)exp++; if(r.midi)exp++; if(r.soir)exp++; }); } let val=abs?Math.max(0,exp-count):count; let cls=(abs&&val>0&&s.regime!=='EXTERNE')?'bg-danger':'bg-secondary'; if(!abs&&val>0)cls='bg-success'; tbody.innerHTML+=`<tr><td>${s.nom}</td><td>${s.prenom}</td><td>${s.classe}</td><td>${s.regime}</td><td class="text-center"><span class="badge ${cls}">${val}</span></td></tr>`; }); filterTable('reportTable', document.getElementById('tableFilter').value); }
+    
+    function loadDailyStats() {
+        const d = document.getElementById('scanDate').value;
+        const list = document.getElementById('todayList'); list.innerHTML='';
+        const logs = db.logs.filter(l=>l.date===d);
+        logs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+        document.getElementById('countTodayDisplay').innerText = logs.length;
+        logs.slice(0, 10).forEach(l=>{
+            let n = "Inconnu";
+            const s = db.students.find(x=>x.id===l.studentId);
+            const p = db.staff.find(x=>x.id===l.studentId);
+            
+            if(s) n = `${s.nom} ${s.prenom} <small class='text-muted'>[${s.id}]</small> (${s.classe})`;
+            if(p) n = `${p.nom} ${p.prenom} <small class='text-muted'>[${p.id}]</small> <em class='text-primary'>(${p.fonction})</em>`;
+            
+            list.innerHTML += `<li class="list-group-item d-flex justify-content-between">
+                <span>${n}</span> 
+                <span class="text-muted small">${new Date(l.timestamp).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
+            </li>`;
+        });
+    }
+    function showMissingModal() { const dateStr = document.getElementById('scanDate').value; if(isDateClosed(dateStr)) return alert("Jour fermé !"); const jsDay = new Date(dateStr).getDay(); const dayKey = DAYS[jsDay]; const list = document.getElementById('missingList'); list.innerHTML=''; const missing = db.students.filter(s => { if(s.regime !== 'DP' && s.regime !== 'INTERNE') return false; const isInt = s.regime === 'INTERNE'; const rights = isInt ? db.config.meals_int[dayKey] : db.config.meals_dp[dayKey]; if(!rights || !rights[currentService]) return false; const ate = db.logs.find(l => l.studentId === s.id && l.date === dateStr && l.service === currentService); return !ate; }); if(missing.length === 0) list.innerHTML = '<li class="list-group-item text-success">Aucun manquant.</li>'; else { missing.forEach(s => { list.innerHTML += `<li class="list-group-item d-flex justify-content-between"><span>${s.nom} ${s.prenom} (${s.classe})</span> <span class="badge bg-secondary">${s.regime}</span></li>`; }); } new bootstrap.Modal(document.getElementById('missingModal')).show(); }
+    function exportExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById('reportTable')), 'export.xlsx'); }
+    function exportPDF() { const {jsPDF}=window.jspdf; const doc=new jsPDF(); doc.autoTable({html:'#reportTable'}); doc.save('export.pdf'); }
+    
+    // --- NOUVELLES FONCTIONS DE SAUVEGARDE ET RESTAURATION RAPIDE ---
+    function downloadBackup() { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(db)); a.download="sauvegarde.data"; a.click(); }
+    
+    function restoreBackup(inputElement) { 
+        const f = inputElement.files[0]; 
+        if(!f) return;
+        
+        if(!confirm("⚠️ ATTENTION : Vous allez remplacer TOUTES les données actuelles par celles du fichier.\n\nÊtes-vous sûr ?")) {
+            inputElement.value = ''; // Reset pour permettre de re-sélectionner le même fichier si besoin
+            return;
+        }
+
+        const r=new FileReader(); 
+        r.onload=e=>{
+            try {
+                const data = JSON.parse(e.target.result);
+                // Vérification basique
+                if(!data.students || !data.config) throw new Error("Format invalide");
+                
+                db = data; 
+                saveData(); 
+                alert("✅ Restauration terminée avec succès !");
+                location.reload();
+            } catch(err) {
+                alert("❌ Erreur : Le fichier est corrompu ou invalide.");
+            }
+        }; 
+        r.readAsText(f);
+    }
+</script>
+<div style="position:fixed; bottom:10px; right:10px; z-index:9999;">
+    <button onclick="checkDatabaseRights()" class="btn btn-warning border-dark">
+        🕵️ Inspecter les droits du Mardi
+    </button>
+</div>
+
+</body>
+</html>
